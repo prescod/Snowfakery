@@ -4,7 +4,19 @@ from datetime import date
 from pathlib import Path
 
 import yaml
-from pydantic import field_validator, ConfigDict, BaseModel, RootModel, PositiveInt
+from pydantic import ConfigDict, BaseModel, PositiveInt
+
+# Pydantic 1.x stuff
+try:
+    from pydantic import field_validator, RootModel
+except ImportError:
+    # for Pydantic 1.x
+    from pydantic import validator
+    def field_validator(*args, mode=None):
+        assert mode == "before" # only mode supported in this backport
+        return validator(*args, pre=True)
+    from pydantic import BaseModel
+    RootModel = BaseModel
 
 
 class AtomicDecl(T.NamedTuple):
@@ -123,7 +135,12 @@ class LoadDeclarationsTuple(T.NamedTuple):
 
 
 class SObjectRuleDeclarationFile(RootModel):
-    root: T.List[T.Union[ChannelDeclarationList, SObjectRuleDeclaration]]
+    if RootModel==BaseModel:
+        # for Pydantic 1.x
+        __root__: T.List[T.Union[ChannelDeclarationList, SObjectRuleDeclaration]]
+    else:
+        root: T.List[T.Union[ChannelDeclarationList, SObjectRuleDeclaration]]
+    
 
     @classmethod
     def parse_from_yaml(cls, f: T.Union[Path, T.TextIO]):
@@ -133,7 +150,7 @@ class SObjectRuleDeclarationFile(RootModel):
                 data = yaml.safe_load(fd)
         else:
             data = yaml.safe_load(f)
-
+        print(RootModel, BaseModel, BaseModel.model_validate)
         sobject_decls = [
             obj
             for obj in cls.model_validate(data).root
